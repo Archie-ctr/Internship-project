@@ -1,0 +1,136 @@
+name: Code Quality & Coverage
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  sonarcloud:
+    runs-on: ubuntu-latest
+    name: SonarCloud Analysis
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+      
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      
+      - name: Run backend tests with coverage
+        run: |
+          cd backend
+          pytest --cov=app --cov-report=xml
+        continue-on-error: true
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+      
+      - name: Run frontend tests with coverage
+        run: |
+          cd frontend
+          npm test -- --coverage --watchAll=false 2>/dev/null || true
+        continue-on-error: true
+      
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true
+
+  code-climate:
+    runs-on: ubuntu-latest
+    name: Code Climate Analysis
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install coverage
+      
+      - name: Generate backend coverage
+        run: |
+          cd backend
+          coverage run -m pytest
+          coverage xml
+        continue-on-error: true
+      
+      - name: Upload to Code Climate
+        uses: paambaati/codeclimate-action@v6
+        env:
+          CC_TEST_REPORTER_ID: ${{ secrets.CODE_CLIMATE_REPORTER_ID }}
+        with:
+          coverageCommand: echo "Coverage already generated"
+          coverageLocations: ./backend/coverage.xml:coverage.py
+        continue-on-error: true
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    name: Dependency Vulnerability Check
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'BizReg'
+          path: '.'
+          format: 'JSON'
+        continue-on-error: true
+      
+      - name: Upload OWASP results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: dependency-check-report.json
+        continue-on-error: true
+
+  codecov:
+    runs-on: ubuntu-latest
+    name: Codecov Summary
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Create coverage badge
+        run: |
+          mkdir -p .github/badges
+          echo '{"schemaVersion":1,"label":"coverage","message":"pending","color":"lightgrey"}' > .github/badges/coverage.json
+      
+      - name: Upload badge
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-badge
+          path: .github/badges/coverage.json

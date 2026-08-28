@@ -1,0 +1,27 @@
+# Environment files contain local secrets and must never be committed.
+.env
+.env.*
+!.env.example
+
+# JavaScript build output and dependencies.
+frontend/node_modules/
+frontend/.next/
+frontend/coverage/
+
+# Python virtual environments, caches, and test output.
+backend/.venv/
+backend/__pycache__/
+backend/**/*.py[cod]
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/coverage.xml
+
+# Runtime-generated local document storage. Source code creates it when needed.
+backend/storage/
+
+# IDE and operating-system files.
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db

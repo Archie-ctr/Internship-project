@@ -1,0 +1,15 @@
+# FastAPI provides the REST framework and its validation integration.
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+pydantic-settings==2.8.1
+
+# Installed now because database models and migrations arrive in Phase 2.
+sqlalchemy==2.0.40
+psycopg[binary]==3.2.6
+alembic==1.15.2
+
+# Phase 3: OAuth2 form parsing, bcrypt password hashing, and signed JWTs.
+python-multipart==0.0.20
+passlib[bcrypt]==1.7.4
+PyJWT==2.10.1
+email-validator==2.3.0

@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bizreg-postgres
+    restart: unless-stopped
+    # Keep the container credentials and backend DATABASE_URL in one local,
+    # ignored file. This avoids unrelated Windows POSTGRES_* variables silently
+    # overriding Compose's values during database initialisation.
+    env_file:
+      - ./backend/.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: bizreg-redis
+    restart: unless-stopped
+    ports:
+      # Keep Redis on its normal container port while avoiding a common host
+      # port conflict with an existing local Redis installation.
+      - "${REDIS_HOST_PORT:-6380}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:

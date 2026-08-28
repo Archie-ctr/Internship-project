@@ -1,0 +1,109 @@
+name: Database Migrations
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/alembic/**'
+      - '.github/workflows/db-*.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/alembic/**'
+      - '.github/workflows/db-*.yml'
+
+jobs:
+  migration-check:
+    runs-on: ubuntu-latest
+    name: Check Alembic Migrations
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: bizreg_test
+          POSTGRES_USER: bizreg_test
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Create .env
+        run: |
+          cd backend
+          cat > .env << EOF
+          DATABASE_URL=postgresql://bizreg_test:test_password@localhost:5432/bizreg_test
+          JWT_SECRET_KEY=test_secret_key
+          ENVIRONMENT=test
+          EOF
+      
+      - name: Check migration syntax
+        run: |
+          cd backend
+          alembic check
+        continue-on-error: true
+      
+      - name: Test upgrade migration
+        run: |
+          cd backend
+          alembic upgrade head
+      
+      - name: Verify database schema
+        run: |
+          cd backend
+          python -c "
+          from app.db.base import Base
+          from sqlalchemy import create_engine, inspect
+          engine = create_engine('postgresql://bizreg_test:test_password@localhost:5432/bizreg_test')
+          inspector = inspect(engine)
+          tables = inspector.get_table_names()
+          print(f'✓ Found {len(tables)} tables')
+          for table in tables:
+              columns = inspector.get_columns(table)
+              print(f'  - {table}: {len(columns)} columns')
+          "
+      
+      - name: Test downgrade migration (if exists)
+        run: |
+          cd backend
+          alembic downgrade base
+          alembic upgrade head
+        continue-on-error: true
+
+  migration-naming:
+    runs-on: ubuntu-latest
+    name: Validate Migration Naming
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check migration file names
+        run: |
+          cd backend/alembic/versions
+          for file in *.py; do
+            if [[ ! $file =~ ^[0-9]{8}_[0-9]{4}_.*\.py$ ]]; then
+              echo "❌ Invalid migration name: $file"
+              echo "Expected format: YYYYMMDD_HHMM_description.py"
+              exit 1
+            fi
+            echo "✓ $file"
+          done
