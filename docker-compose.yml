@@ -9,7 +9,9 @@ services:
     env_file:
       - ./backend/.env
     ports:
-      - "5432:5432"
+      # Use 5433 on the host to avoid conflicts with a locally-installed PostgreSQL
+      # that may already be listening on 5432. The container still uses 5432 internally.
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

@@ -1,25 +1,37 @@
-# Environment files contain local secrets and must never be committed.
+# ── Secrets ──────────────────────────────────────────────────────────────────
+# Local .env files contain credentials and must never be committed.
 .env
 .env.*
 !.env.example
 
-# JavaScript build output and dependencies.
+# ── Frontend ─────────────────────────────────────────────────────────────────
 frontend/node_modules/
 frontend/.next/
 frontend/coverage/
+frontend/tsconfig.tsbuildinfo
+frontend/build.log
 
-# Python virtual environments, caches, and test output.
+# ── Backend — Python ─────────────────────────────────────────────────────────
+# Virtual environment
 backend/.venv/
-backend/__pycache__/
-backend/**/*.py[cod]
+
+# Byte-compiled files (all nesting depths)
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+
+# Test / type-check artefacts
 backend/.pytest_cache/
 backend/.mypy_cache/
 backend/coverage.xml
+backend/.coverage
+.coverage
 
-# Runtime-generated local document storage. Source code creates it when needed.
+# Runtime document storage (created automatically on first upload)
 backend/storage/
 
-# IDE and operating-system files.
+# ── IDE and OS ────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.log

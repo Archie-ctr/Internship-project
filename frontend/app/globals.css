@@ -3,10 +3,36 @@
 @tailwind utilities;
 
 :root {
-  color: #15233a;
-  background: #f7f9fc;
+  color: #0f172a;
+  background: #f8fafc;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
-body { margin: 0; min-height: 100vh; }
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Hide scrollbar utility (used on tab bars that scroll on mobile) */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Ensure tables don't overflow their containers on mobile */
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}

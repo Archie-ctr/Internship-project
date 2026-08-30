@@ -8,24 +8,28 @@ or accidental plaintext-password handling in route handlers.
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
-# bcrypt is intentionally selected as required by the training project. The
-# context owns salting and cost handling; never implement either manually.
-password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt is intentionally selected as required by the training project.
+# We call the bcrypt library directly instead of through passlib because
+# passlib's bcrypt backend has a known compatibility issue with Python 3.13
+# and bcrypt >= 4.x that raises ValueError on its internal self-test.
+_BCRYPT_ROUNDS = 12
 
 
 def hash_password(password: str) -> str:
-    """Return a one-way bcrypt hash; callers must never persist the plaintext."""
-    return password_context.hash(password)
+    """Return a bcrypt hash string; callers must never persist the plaintext."""
+    password_bytes = password.encode("utf-8")
+    hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=_BCRYPT_ROUNDS))
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain_password: str, password_hash: str) -> bool:
-    """Use bcrypt's timing-safe verification instead of comparing hashes ourselves."""
-    return password_context.verify(plain_password, password_hash)
+    """Use bcrypt's constant-time checkpw to prevent timing attacks."""
+    return bcrypt.checkpw(plain_password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
 def create_token(subject: str, role: str, token_type: str, expires_delta: timedelta) -> str:

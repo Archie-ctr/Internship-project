@@ -9,7 +9,14 @@ psycopg[binary]==3.2.6
 alembic==1.15.2
 
 # Phase 3: OAuth2 form parsing, bcrypt password hashing, and signed JWTs.
+# passlib is not used — its bcrypt backend has a compatibility issue with
+# Python 3.13 and bcrypt >= 4.x. We call the bcrypt library directly instead.
 python-multipart==0.0.20
-passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
 PyJWT==2.10.1
 email-validator==2.3.0
+
+# Phase 10: Rate limiting (Day 10 — security hardening).
+# slowapi wraps limits-inspired token-bucket logic; uses Redis in production
+# and falls back to an in-memory store for local/test environments.
+slowapi==0.1.9

@@ -35,15 +35,18 @@ export async function readApiBody(response: Response): Promise<{ detail?: string
 }
 
 export function saveTokens(tokens: TokenPair) {
+  if (typeof window === "undefined") return;
   localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
   localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
 }
 
 export function getAccessToken() {
+  if (typeof window === "undefined") return null;
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
 export function clearTokens() {
+  if (typeof window === "undefined") return;
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
