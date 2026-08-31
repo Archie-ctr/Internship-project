@@ -16,6 +16,9 @@ bcrypt==4.2.1
 PyJWT==2.10.1
 email-validator==2.3.0
 
+# Phase 6: PDF certificate generation.
+reportlab==4.2.5
+
 # Phase 10: Rate limiting (Day 10 — security hardening).
 # slowapi wraps limits-inspired token-bucket logic; uses Redis in production
 # and falls back to an in-memory store for local/test environments.

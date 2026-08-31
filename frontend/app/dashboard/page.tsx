@@ -43,18 +43,78 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleDateString("en-RW", { day: "numeric", month: "short", year: "numeric" });
 }
 
+/* ── small reusable download button ─────────────────────────────────────── */
+function DownloadCertButton({ applicationId, businessName }: {
+  applicationId: string; businessName: string;
+}) {
+  const [busy, setBusy]   = useState(false);
+  const [err, setErr]     = useState("");
+
+  async function download() {
+    setBusy(true); setErr("");
+    try {
+      const r = await apiFetch(`/applications/${applicationId}/certificate`);
+      if (!r.ok) { const d = await r.json(); throw new Error(d.detail ?? "Download failed"); }
+      const blob = await r.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      const safe = businessName.replace(/[^a-z0-9]/gi, "_").slice(0, 40);
+      a.href     = url;
+      a.download = `BizReg_Certificate_${safe}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Download failed");
+      setTimeout(() => setErr(""), 4000);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <button
+        onClick={download}
+        disabled={busy}
+        title="Download certificate PDF"
+        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+      >
+        {busy ? (
+          <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+          </svg>
+        ) : (
+          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        )}
+        PDF
+      </button>
+      {err && <p className="text-xs text-red-600 max-w-[120px] text-right">{err}</p>}
+    </div>
+  );
+}
+
 /* ── detail modal ───────────────────────────────────────────────────────── */
 function AppModal({ app, onClose, onPay }: {
   app: Application; onClose: () => void; onPay: (id: string) => void;
 }) {
-  const [paying, setPaying] = useState(false);
-  const [payError, setPayError] = useState("");
+  const [paying, setPaying]           = useState(false);
+  const [payError, setPayError]       = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [dlError, setDlError]         = useState("");
+
   const ownerDetails = typeof app.form_data === "object" && app.form_data !== null && "owner" in app.form_data
     ? (app.form_data.owner as Record<string, string> | undefined)
     : undefined;
   const addressDetails = typeof app.form_data === "object" && app.form_data !== null && "address" in app.form_data
     ? (app.form_data.address as Record<string, string> | undefined)
     : undefined;
+
+  const canDownload = app.status === "approved" || app.status === "completed";
 
   async function handlePay() {
     setPaying(true); setPayError("");
@@ -72,9 +132,35 @@ function AppModal({ app, onClose, onPay }: {
     } finally { setPaying(false); }
   }
 
+  async function handleDownloadCertificate() {
+    setDownloading(true); setDlError("");
+    try {
+      const r = await apiFetch(`/applications/${app.id}/certificate`);
+      if (!r.ok) {
+        const d = await r.json();
+        throw new Error(d.detail ?? "Could not generate certificate");
+      }
+      // Read binary stream → Blob → object URL → programmatic click
+      const blob = await r.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      const safeName = app.business_name.replace(/[^a-z0-9]/gi, "_").slice(0, 40);
+      a.href     = url;
+      a.download = `BizReg_Certificate_${safeName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setDlError(e instanceof Error ? e.message : "Download failed");
+    } finally { setDownloading(false); }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
       <div className="w-full max-w-lg rounded-t-2xl bg-white shadow-xl sm:rounded-2xl max-h-[90vh] flex flex-col">
+
+        {/* header */}
         <div className="flex items-start justify-between border-b px-6 py-4">
           <div>
             <h2 className="font-bold text-slate-900">{app.business_name}</h2>
@@ -84,16 +170,69 @@ function AppModal({ app, onClose, onPay }: {
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </div>
+
+        {/* body */}
         <div className="overflow-y-auto px-6 py-4 space-y-3">
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-500">Status</span>
             <StatusBadge status={app.status} />
           </div>
+
+          {/* ── Certificate download banner ── */}
+          {canDownload && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                  <svg className="h-5 w-5 text-emerald-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="12" y1="12" x2="12" y2="18"/>
+                    <polyline points="9 15 12 18 15 15"/>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-emerald-900">Certificate ready</p>
+                  <p className="mt-0.5 text-sm text-emerald-700">
+                    Your business registration certificate is available for download.
+                  </p>
+                  {dlError && (
+                    <p className="mt-2 text-sm text-red-600">{dlError}</p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={handleDownloadCertificate}
+                disabled={downloading}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {downloading ? (
+                  <>
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Generating PDF…
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download Certificate (PDF)
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
           {app.rejection_reason && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
               <strong>Rejection reason:</strong> {app.rejection_reason}
             </div>
           )}
+
           {app.form_data && (
             <div className="rounded-lg border bg-slate-50 p-4 text-sm space-y-1">
               <p className="font-medium text-slate-700 mb-2">Application details</p>
@@ -108,6 +247,7 @@ function AppModal({ app, onClose, onPay }: {
               )}
             </div>
           )}
+
           {app.status === "payment_pending" && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
               <p className="font-medium text-amber-800">Registration fee due</p>
@@ -123,6 +263,8 @@ function AppModal({ app, onClose, onPay }: {
             </div>
           )}
         </div>
+
+        {/* footer */}
         <div className="border-t px-6 py-3 flex justify-end">
           <button onClick={onClose} className="rounded-lg border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Close</button>
         </div>
@@ -239,21 +381,29 @@ function CitizenDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {apps.map(a => (
-                    <tr key={a.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-900 max-w-[140px] truncate">{a.business_name}</td>
-                      <td className="px-4 py-3"><StatusBadge status={a.status} /></td>
-                      <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">{fmt(a.created_at)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => openDetail(a)}
-                          className="rounded-lg border px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {apps.map(a => {
+                    const canDownload = a.status === "approved" || a.status === "completed";
+                    return (
+                      <tr key={a.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-900 max-w-[140px] truncate">{a.business_name}</td>
+                        <td className="px-4 py-3"><StatusBadge status={a.status} /></td>
+                        <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">{fmt(a.created_at)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {canDownload && (
+                              <DownloadCertButton applicationId={a.id} businessName={a.business_name} />
+                            )}
+                            <button
+                              onClick={() => openDetail(a)}
+                              className="rounded-lg border px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                            >
+                              View
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
